@@ -18,6 +18,8 @@
   label{display:block;font-size:12px;color:var(--mut);margin:12px 0 6px;text-transform:uppercase;letter-spacing:1px}
   input,select,textarea{width:100%;background:#0f0f0f;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:13px;font-size:16px;outline:none}
   input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+  input[readonly]{color:var(--mut);background:#141414}
+  .lock{font-size:10px;color:var(--mut);letter-spacing:1px;margin-bottom:6px}
   textarea{min-height:80px;resize:vertical}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .hint{font-size:11px;color:var(--mut);margin-top:5px}
@@ -86,13 +88,11 @@
     <label>Delta mese (€)</label>
     <input type="text" inputmode="decimal" id="delta" placeholder="es. -12500">
     <div class="hint">Negativo se sotto obiettivo (es. -12500)</div>
-    <label>Budget mese (€) – facoltativo</label>
-    <input type="text" inputmode="decimal" id="budget" placeholder="es. 260000">
     <div class="row">
-      <div><label>Giorni trascorsi</label><input type="number" id="gTrasc" min="0"></div>
-      <div><label>Giorni rimanenti</label><input type="number" id="gRim" min="1"></div>
+      <div><label>Giorni trascorsi</label><input type="number" id="gTrasc" readonly></div>
+      <div><label>Giorni rimanenti</label><input type="number" id="gRim" readonly></div>
     </div>
-    <div class="hint">Calcolati dalla data (oggi incluso nei rimanenti): modificabili</div>
+    <div class="hint">Calcolati in automatico dalla data (oggi incluso nei rimanenti)</div>
     <div class="kpi" style="margin-top:14px">
       <div class="k big"><span>Da fare al giorno per il pareggio</span><b id="rGiorno">—</b></div>
       <div class="k"><span>Media attuale/giorno</span><b id="rMedia">—</b></div>
@@ -104,7 +104,7 @@
 
   <div class="card">
     <h2>Obiettivi per voce <button class="mini" onclick="carica(true)">↻ AGGIORNA</button></h2>
-    <div class="hint" style="margin:-6px 0 12px">Inserisci il realizzato progressivo dal 1° del mese: il calcolo usa la prossima scadenza e il fine mese</div>
+    <div class="hint" style="margin:-6px 0 12px">Gli obiettivi sono fissati dal Capo Area e non modificabili. Inserisci il fatturato fatto dal 1° del mese e il delta per ogni voce</div>
     <div id="voci"><div class="stato">Seleziona il PDV</div></div>
   </div>
 
@@ -139,7 +139,8 @@ const ORDINE_TIPI = ["TOTALE","SETTORE","FAMIGLIA","PRODOTTO"];
 
 const $ = id => document.getElementById(id);
 let RIGHE = [], SCAD = [];           // righe obiettivi + scadenze [{label, giorno|null(fine mese), col}]
-let realizzati = {};                 // chiave voce -> valore digitato
+let realizzati = {};                 // chiave voce -> fatto digitato
+let delte = {};                      // chiave voce -> delta digitato
 
 /* ===== UTIL ===== */
 function num(v){
@@ -241,8 +242,12 @@ function render(){
       const k = chiave(r), id = 'v_'+btoa(unescape(encodeURIComponent(k))).replace(/[^a-z0-9]/gi,'');
       html += `<div class="voce" id="${id}">
         <div class="vt"><b>${r.voce}</b><span class="tag">${r.tipo}</span></div>
+        <div class="lock">🔒 OBIETTIVI</div>
         <div class="cps" data-cps></div>
-        <input type="text" inputmode="decimal" placeholder="Realizzato ad oggi (€)" value="${realizzati[k]||''}" data-k="${encodeURIComponent(k)}">
+        <div class="row">
+          <input type="text" inputmode="decimal" placeholder="Fatto ad oggi (€)" value="${realizzati[k]||''}" data-k="${encodeURIComponent(k)}">
+          <input type="text" inputmode="decimal" placeholder="Delta (€)" value="${delte[k]||''}" data-d="${encodeURIComponent(k)}">
+        </div>
         <div class="res" data-res></div>
       </div>`;
     });
@@ -250,6 +255,9 @@ function render(){
   box.innerHTML = html;
   box.querySelectorAll('input[data-k]').forEach(inp=>inp.addEventListener('input',e=>{
     realizzati[decodeURIComponent(e.target.dataset.k)] = e.target.value; aggiornaVoci(); aggiorna();
+  }));
+  box.querySelectorAll('input[data-d]').forEach(inp=>inp.addEventListener('input',e=>{
+    delte[decodeURIComponent(e.target.dataset.d)] = e.target.value; aggiorna();
   }));
   aggiornaVoci(); aggiorna();
 }
@@ -284,7 +292,7 @@ function calcGiorni(){
   $('gRim').value = ultimoGiorno(d) - d.getDate() + 1;
 }
 function calcola(){
-  const fatt=num($('fatt').value), delta=num($('delta').value), budget=num($('budget').value);
+  const fatt=num($('fatt').value), delta=num($('delta').value), budget=NaN;
   const gT=parseInt($('gTrasc').value)||0, gR=parseInt($('gRim').value)||0;
   const media = gT>0 && !isNaN(fatt) ? fatt/gT : NaN;
   let daRec, giorno, extra;
@@ -303,17 +311,17 @@ function testo(){
   let t = `PIANO DI RECUPERO – PDV ${pdv}\nData: ${data}\nCompilato da: ${$('nome').value}\n`;
   if(!isNaN(r.fatt) || !isNaN(r.delta)){
     t += `\n== DATI GENERALI ==\nFatturato totale mese: ${eur(r.fatt)}\nDelta mese: ${eur(r.delta)}\n`;
-    if(!isNaN(r.budget)) t += `Budget mese: ${eur(r.budget)}\n`;
     t += `Giorni trascorsi: ${r.gT} – rimanenti: ${r.gR}\nMedia attuale/giorno: ${eur(r.media)}\nDa recuperare: ${eur(r.daRec)}\n`;
     t += `>>> DA FARE AL GIORNO PER IL PAREGGIO: ${eur(r.giorno)} <<<\n`;
   }
-  const voci = RIGHE.filter(x=>(x.pdv===pdv||x.pdv==='TUTTI') && !isNaN(num(realizzati[chiave(x)])));
+  const voci = RIGHE.filter(x=>(x.pdv===pdv||x.pdv==='TUTTI') && (!isNaN(num(realizzati[chiave(x)])) || !isNaN(num(delte[chiave(x)]))));
   if(voci.length){
     t += `\n== DA FARE AL GIORNO PER VOCE ==\n`;
     voci.forEach(x=>{
-      const c = calcVoce(x); if(!c.cNext) return;
+      const c = calcVoce(x), dv = num(delte[chiave(x)]);
+      t += `\n[${x.tipo}] ${x.voce}\n  Fatto: ${eur(c.real)}` + (!isNaN(dv) ? `  |  Delta: ${eur(dv)}` : '') + `\n`;
+      if(!c.cNext) return;
       const n=c.cNext, f=c.cFine;
-      t += `\n[${x.tipo}] ${x.voce}\n  Realizzato: ${eur(c.real)}\n`;
       t += `  ${n.o.label} (obiettivo ${eur(n.o.val)}): ` + (n.manca<=0 ? `RAGGIUNTO (+${eur(-n.manca)})` : `mancano ${eur(n.manca)} → ${eur(n.giorno)}/giorno per ${n.gg} gg`) + `\n`;
       if(f.o.label!==n.o.label)
         t += `  FINE MESE (obiettivo ${eur(f.o.val)}): ` + (f.manca<=0 ? `RAGGIUNTO (+${eur(-f.manca)})` : `mancano ${eur(f.manca)} → ${eur(f.giorno)}/giorno per ${f.gg} gg`) + `\n`;
@@ -326,9 +334,9 @@ function testo(){
 function aggiorna(){ $('preview').textContent = testo(); salva(); }
 function valida(){
   if(!$('pdv').value){ toast('Seleziona il PDV'); return false; }
-  const haGen = !isNaN(num($('fatt').value)) && (!isNaN(num($('delta').value)) || !isNaN(num($('budget').value)));
-  const haVoci = Object.values(realizzati).some(v=>!isNaN(num(v)));
-  if(!haGen && !haVoci){ toast('Compila i dati generali o almeno una voce'); return false; }
+  const haGen = !isNaN(num($('fatt').value)) && !isNaN(num($('delta').value));
+  const haVoci = [...Object.values(realizzati),...Object.values(delte)].some(v=>!isNaN(num(v)));
+  if(!haGen && !haVoci){ toast('Compila fatturato e delta o almeno una voce'); return false; }
   return true;
 }
 function inviaMail(){
@@ -339,15 +347,15 @@ function inviaMail(){
 function copia(){ if(!valida()) return; navigator.clipboard.writeText(testo()).then(()=>toast('Testo copiato')); }
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
 function salva(){ try{ localStorage.setItem('pdr_pdv',$('pdv').value); localStorage.setItem('pdr_nome',$('nome').value);}catch(e){} }
-function reset(){ ['fatt','delta','budget','azioni'].forEach(i=>$(i).value=''); realizzati={}; render(); }
+function reset(){ ['fatt','delta','azioni'].forEach(i=>$(i).value=''); realizzati={}; delte={}; render(); }
 
 /* ===== AVVIO ===== */
 $('data').valueAsDate = new Date();
 try{ $('pdv').value = localStorage.getItem('pdr_pdv')||''; $('nome').value = localStorage.getItem('pdr_nome')||''; }catch(e){}
 calcGiorni();
 $('data').addEventListener('change',()=>{ calcGiorni(); aggiornaVoci(); aggiorna(); });
-$('pdv').addEventListener('change',()=>{ realizzati={}; render(); });
-['fatt','delta','budget','gTrasc','gRim','nome','azioni'].forEach(i=>$(i).addEventListener('input',aggiorna));
+$('pdv').addEventListener('change',()=>{ realizzati={}; delte={}; render(); });
+['fatt','delta','nome','azioni'].forEach(i=>$(i).addEventListener('input',aggiorna));
 carica();
 </script>
 </body>
