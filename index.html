@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Piano di Recupero – DML</title>
+<style>
+  :root{--bg:#0b0b0b;--card:#161616;--line:#2a2a2a;--gold:#d4af37;--gold2:#f1d77a;--txt:#f2f2f2;--mut:#9a9a9a;--red:#ff5c5c;--green:#3ddc84;--orange:#ffa940}
+  *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  body{background:var(--bg);color:var(--txt);min-height:100vh;padding:20px 14px 40px}
+  .wrap{max-width:600px;margin:0 auto}
+  header{text-align:center;margin-bottom:22px}
+  header .logo{font-size:13px;letter-spacing:4px;color:var(--gold);font-weight:700}
+  header h1{font-size:28px;margin-top:6px;background:linear-gradient(90deg,var(--gold),var(--gold2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  header p{color:var(--mut);font-size:13px;margin-top:4px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+  .card h2{font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:14px;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+  label{display:block;font-size:12px;color:var(--mut);margin:12px 0 6px;text-transform:uppercase;letter-spacing:1px}
+  input,select,textarea{width:100%;background:#0f0f0f;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:13px;font-size:16px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+  textarea{min-height:80px;resize:vertical}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:11px;color:var(--mut);margin-top:5px}
+  .kpi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .k{background:#0f0f0f;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .k span{display:block;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px}
+  .k b{display:block;font-size:20px;margin-top:6px}
+  .k.big{grid-column:1/-1;border-color:var(--gold);background:linear-gradient(180deg,#1d1808,#0f0f0f)}
+  .k.big b{font-size:32px;color:var(--gold2)}
+  .neg{color:var(--red)}.pos{color:var(--green)}
+  .btns{display:grid;gap:10px;margin-top:4px}
+  button{border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:700;cursor:pointer}
+  .b1{background:linear-gradient(90deg,var(--gold),var(--gold2));color:#111}
+  .b2{background:#222;color:var(--txt);border:1px solid var(--line)}
+  .mini{padding:6px 10px;font-size:11px;border-radius:8px;background:#222;color:var(--gold);border:1px solid var(--line);letter-spacing:1px}
+  pre{white-space:pre-wrap;background:#0f0f0f;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;color:#ddd;font-family:ui-monospace,Menlo,monospace}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--gold);color:#111;padding:10px 18px;border-radius:20px;font-weight:700;opacity:0;transition:.3s;pointer-events:none}
+  .toast.show{opacity:1}
+  footer{text-align:center;color:var(--mut);font-size:11px;margin-top:20px}
+  /* voci */
+  .grp{font-size:11px;letter-spacing:2px;color:var(--mut);margin:16px 0 8px;text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .grp:first-child{margin-top:0}
+  .voce{background:#0f0f0f;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+  .voce.ok{border-color:#1f5e3a}.voce.ko{border-color:#5e1f1f}
+  .vt{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+  .vt b{font-size:15px}
+  .tag{font-size:10px;padding:3px 7px;border-radius:6px;background:#2a2410;color:var(--gold2);letter-spacing:1px;white-space:nowrap}
+  .cps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .cp{font-size:11px;padding:4px 8px;border-radius:6px;background:#1c1c1c;color:var(--mut);border:1px solid var(--line)}
+  .cp.next{color:#111;background:var(--gold);border-color:var(--gold);font-weight:700}
+  .cp.past{text-decoration:line-through;opacity:.5}
+  .res{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .res div{background:#161616;border-radius:8px;padding:8px;text-align:center}
+  .res span{display:block;font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:1px}
+  .res b{display:block;font-size:17px;margin-top:3px}
+  .res .hl b{color:var(--gold2)}
+  .stato{font-size:12px;color:var(--mut);text-align:center;padding:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">DML · TRONY</div>
+    <h1>Piano di Recupero</h1>
+    <p>Compila i dati e invia il piano al Capo Area</p>
+  </header>
+
+  <div class="card">
+    <h2>Punto vendita</h2>
+    <label>PDV</label>
+    <select id="pdv">
+      <option value="">— Seleziona —</option>
+      <option>FANO</option><option>MONSANO</option><option>OSIMO</option>
+      <option>MACERATA</option><option>CIVITANOVA</option><option>PESARO</option>
+    </select>
+    <div class="row">
+      <div><label>Data</label><input type="date" id="data"></div>
+      <div><label>Compilato da</label><input type="text" id="nome" placeholder="Nome"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Dati generali mese</h2>
+    <label>Fatturato totale mese (€)</label>
+    <input type="text" inputmode="decimal" id="fatt" placeholder="es. 185000">
+    <label>Delta mese (€)</label>
+    <input type="text" inputmode="decimal" id="delta" placeholder="es. -12500">
+    <div class="hint">Negativo se sotto obiettivo (es. -12500)</div>
+    <label>Budget mese (€) – facoltativo</label>
+    <input type="text" inputmode="decimal" id="budget" placeholder="es. 260000">
+    <div class="row">
+      <div><label>Giorni trascorsi</label><input type="number" id="gTrasc" min="0"></div>
+      <div><label>Giorni rimanenti</label><input type="number" id="gRim" min="1"></div>
+    </div>
+    <div class="hint">Calcolati dalla data (oggi incluso nei rimanenti): modificabili</div>
+    <div class="kpi" style="margin-top:14px">
+      <div class="k big"><span>Da fare al giorno per il pareggio</span><b id="rGiorno">—</b></div>
+      <div class="k"><span>Media attuale/giorno</span><b id="rMedia">—</b></div>
+      <div class="k"><span>Recupero extra/giorno</span><b id="rExtra">—</b></div>
+      <div class="k"><span>Delta mese</span><b id="rDelta">—</b></div>
+      <div class="k"><span>Da recuperare</span><b id="rTot">—</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Obiettivi per voce <button class="mini" onclick="carica(true)">↻ AGGIORNA</button></h2>
+    <div class="hint" style="margin:-6px 0 12px">Inserisci il realizzato progressivo dal 1° del mese: il calcolo usa la prossima scadenza e il fine mese</div>
+    <div id="voci"><div class="stato">Seleziona il PDV</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Azioni di recupero</h2>
+    <label>Reparti / leve su cui spingere</label>
+    <textarea id="azioni" placeholder="es. Push TV 65&quot;, garanzie, servizi, finanziamenti..."></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Anteprima mail</h2>
+    <pre id="preview">Compila i campi per vedere l'anteprima.</pre>
+  </div>
+
+  <div class="btns">
+    <button class="b1" onclick="inviaMail()">✉️ INVIA MAIL</button>
+    <button class="b2" onclick="copia()">📋 COPIA TESTO</button>
+    <button class="b2" onclick="reset()">↺ AZZERA</button>
+  </div>
+
+  <footer>DML Italia · Piano di Recupero <span id="agg"></span></footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== CONFIG ===== */
+const MAIL_TO  = "d.pavoni@dml-italia.com";
+const SHEET_ID = "1090z-kB_ixSJjGNuUq_tM716ojtLqrzmcMp8uk_m2rY";
+const TAB      = "OBIETTIVI";
+const CSV_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(TAB)}`;
+const ORDINE_TIPI = ["TOTALE","SETTORE","FAMIGLIA","PRODOTTO"];
+
+const $ = id => document.getElementById(id);
+let RIGHE = [], SCAD = [];           // righe obiettivi + scadenze [{label, giorno|null(fine mese), col}]
+let realizzati = {};                 // chiave voce -> valore digitato
+
+/* ===== UTIL ===== */
+function num(v){
+  if(v===undefined||v===null) return NaN;
+  v = String(v).replace(/[€\s ]/g,'');
+  if(!v) return NaN;
+  if(/^-?\d{1,3}([.,]\d{3})+$/.test(v)) v = v.replace(/[.,]/g,'');
+  else if(v.includes(',') && v.includes('.')) v = v.lastIndexOf(',')>v.lastIndexOf('.') ? v.replace(/\./g,'').replace(',','.') : v.replace(/,/g,'');
+  else v = v.replace(',','.');
+  return parseFloat(v);
+}
+const eur = n => (n===undefined||isNaN(n)) ? '—' : n.toLocaleString('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+const oggi = () => $('data').value ? new Date($('data').value) : new Date();
+const ultimoGiorno = d => new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+const chiave = r => r.tipo+'|'+r.voce;
+
+function parseCSV(t){
+  const out=[]; let row=[], f='', q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){ if(c=='"'){ if(t[i+1]=='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c=='"') q=true;
+    else if(c==','){ row.push(f); f=''; }
+    else if(c=='\n'||c=='\r'){ if(c=='\r'&&t[i+1]=='\n') i++; row.push(f); out.push(row); row=[]; f=''; }
+    else f+=c;
+  }
+  if(f||row.length){ row.push(f); out.push(row); }
+  return out;
+}
+
+/* ===== CARICAMENTO FOGLIO ===== */
+async function carica(forza){
+  $('voci').innerHTML = '<div class="stato">Caricamento obiettivi…</div>';
+  try{
+    const r = await fetch(CSV_URL + '&t=' + Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const txt = await r.text();
+    if(txt.trim().startsWith('<')) throw new Error('Foglio non condiviso');
+    elabora(txt);
+    try{ localStorage.setItem('pdr_csv', txt); localStorage.setItem('pdr_csv_t', new Date().toLocaleString('it-IT')); }catch(e){}
+    $('agg').textContent = '· dati aggiornati ' + new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+    if(forza) toast('Obiettivi aggiornati');
+  }catch(e){
+    let cache=null; try{ cache = localStorage.getItem('pdr_csv'); }catch(_){}
+    if(cache){ elabora(cache); $('agg').textContent = '· offline, dati del ' + (localStorage.getItem('pdr_csv_t')||''); toast('Uso dati salvati'); }
+    else $('voci').innerHTML = '<div class="stato">⚠️ Impossibile leggere il foglio obiettivi.<br>Verifica la connessione o la condivisione del file.</div>';
+  }
+}
+
+function elabora(txt){
+  const rows = parseCSV(txt).filter(r=>r.some(c=>c.trim()!==''));
+  if(!rows.length){ RIGHE=[]; render(); return; }
+  const h = rows[0].map(x=>x.trim().toUpperCase());
+  const iPdv=h.indexOf('PDV'), iTipo=h.indexOf('TIPO'), iVoce=h.indexOf('VOCE');
+  SCAD = [];
+  h.forEach((lab,i)=>{
+    if([iPdv,iTipo,iVoce].includes(i) || lab==='NOTE' || !lab) return;
+    if(/FINE/.test(lab)) SCAD.push({label:'FINE MESE', giorno:null, col:i});
+    else { const m = lab.match(/\d+/); if(m) SCAD.push({label:'AL '+m[0], giorno:parseInt(m[0]), col:i}); }
+  });
+  SCAD.sort((a,b)=>(a.giorno??99)-(b.giorno??99));
+  RIGHE = rows.slice(1).map(r=>({
+    pdv:(r[iPdv]||'').trim().toUpperCase(),
+    tipo:(r[iTipo]||'ALTRO').trim().toUpperCase()||'ALTRO',
+    voce:(r[iVoce]||'').trim(),
+    obiettivi: SCAD.map(s=>({label:s.label, giorno:s.giorno, val:num(r[s.col])}))
+  })).filter(r=>r.voce);
+  render();
+}
+
+/* ===== CALCOLO PER VOCE ===== */
+function calcVoce(r){
+  const d = oggi(), g = d.getDate(), ult = ultimoGiorno(d);
+  const real = num(realizzati[chiave(r)]);
+  const obs = r.obiettivi.filter(o=>!isNaN(o.val)).map(o=>({...o, giornoEff: o.giorno===null?ult:Math.min(o.giorno,ult)}));
+  const next = obs.find(o=>o.giornoEff>=g);
+  const fine = obs.find(o=>o.giorno===null) || obs[obs.length-1];
+  const calc = o => {
+    if(!o || isNaN(real)) return null;
+    const gg = o.giornoEff - g + 1;
+    const manca = o.val - real;
+    return {o, gg, manca, giorno: manca>0 ? manca/gg : 0};
+  };
+  return {real, obs, next, cNext: calc(next), cFine: calc(fine), g};
+}
+
+/* ===== RENDER ===== */
+function render(){
+  const pdv = $('pdv').value;
+  const box = $('voci');
+  if(!pdv){ box.innerHTML='<div class="stato">Seleziona il PDV</div>'; aggiorna(); return; }
+  const mie = RIGHE.filter(r=>r.pdv===pdv || r.pdv==='TUTTI');
+  if(!mie.length){ box.innerHTML='<div class="stato">Nessun obiettivo caricato per '+pdv+'</div>'; aggiorna(); return; }
+  const tipi = [...new Set(mie.map(r=>r.tipo))].sort((a,b)=>{const x=ORDINE_TIPI.indexOf(a),y=ORDINE_TIPI.indexOf(b);return (x<0?99:x)-(y<0?99:y);});
+  let html='';
+  tipi.forEach(t=>{
+    html += `<div class="grp">${t}</div>`;
+    mie.filter(r=>r.tipo===t).forEach(r=>{
+      const k = chiave(r), id = 'v_'+btoa(unescape(encodeURIComponent(k))).replace(/[^a-z0-9]/gi,'');
+      html += `<div class="voce" id="${id}">
+        <div class="vt"><b>${r.voce}</b><span class="tag">${r.tipo}</span></div>
+        <div class="cps" data-cps></div>
+        <input type="text" inputmode="decimal" placeholder="Realizzato ad oggi (€)" value="${realizzati[k]||''}" data-k="${encodeURIComponent(k)}">
+        <div class="res" data-res></div>
+      </div>`;
+    });
+  });
+  box.innerHTML = html;
+  box.querySelectorAll('input[data-k]').forEach(inp=>inp.addEventListener('input',e=>{
+    realizzati[decodeURIComponent(e.target.dataset.k)] = e.target.value; aggiornaVoci(); aggiorna();
+  }));
+  aggiornaVoci(); aggiorna();
+}
+
+function aggiornaVoci(){
+  const pdv = $('pdv').value;
+  RIGHE.filter(r=>r.pdv===pdv || r.pdv==='TUTTI').forEach(r=>{
+    const id = 'v_'+btoa(unescape(encodeURIComponent(chiave(r)))).replace(/[^a-z0-9]/gi,'');
+    const el = $(id); if(!el) return;
+    const c = calcVoce(r);
+    el.querySelector('[data-cps]').innerHTML = c.obs.map(o=>{
+      const cls = c.next && o.label===c.next.label ? 'next' : (o.giornoEff<c.g ? 'past':'');
+      return `<span class="cp ${cls}">${o.label}: ${eur(o.val)}</span>`;
+    }).join('');
+    const res = el.querySelector('[data-res]');
+    el.classList.remove('ok','ko');
+    if(!c.cNext){ res.innerHTML=''; return; }
+    const n=c.cNext, f=c.cFine, stessa = n.o.label===f.o.label;
+    el.classList.add(n.manca<=0 && f.manca<=0 ? 'ok':'ko');
+    let h = `<div class="hl"><span>Al giorno → ${n.o.label}</span><b>${n.manca<=0?'✅ OK':eur(n.giorno)}</b></div>
+             <div><span>Manca ${n.o.label} (${n.gg} gg)</span><b class="${n.manca>0?'neg':'pos'}">${eur(n.manca>0?n.manca:-n.manca)}${n.manca<=0?' +':''}</b></div>`;
+    if(!stessa) h += `<div class="hl"><span>Al giorno → fine mese</span><b>${f.manca<=0?'✅ OK':eur(f.giorno)}</b></div>
+             <div><span>Manca fine mese (${f.gg} gg)</span><b class="${f.manca>0?'neg':'pos'}">${eur(f.manca>0?f.manca:-f.manca)}${f.manca<=0?' +':''}</b></div>`;
+    res.innerHTML = h;
+  });
+}
+
+/* ===== DATI GENERALI ===== */
+function calcGiorni(){
+  const d = oggi();
+  $('gTrasc').value = d.getDate() - 1;
+  $('gRim').value = ultimoGiorno(d) - d.getDate() + 1;
+}
+function calcola(){
+  const fatt=num($('fatt').value), delta=num($('delta').value), budget=num($('budget').value);
+  const gT=parseInt($('gTrasc').value)||0, gR=parseInt($('gRim').value)||0;
+  const media = gT>0 && !isNaN(fatt) ? fatt/gT : NaN;
+  let daRec, giorno, extra;
+  if(!isNaN(budget) && !isNaN(fatt)){ daRec=Math.max(budget-fatt,0); giorno=gR>0?daRec/gR:NaN; extra=!isNaN(media)?giorno-media:NaN; }
+  else if(!isNaN(delta)){ daRec=delta<0?Math.abs(delta):0; extra=gR>0?daRec/gR:NaN; giorno=!isNaN(media)?media+extra:extra; }
+  $('rGiorno').textContent=eur(giorno); $('rMedia').textContent=eur(media); $('rExtra').textContent=eur(extra);
+  $('rTot').textContent=eur(daRec); $('rDelta').textContent=eur(delta);
+  $('rDelta').className = isNaN(delta)?'':(delta<0?'neg':'pos');
+  return {fatt,delta,budget,gT,gR,media,daRec,giorno,extra};
+}
+
+/* ===== TESTO MAIL ===== */
+function testo(){
+  const r = calcola(), pdv=$('pdv').value;
+  const data = oggi().toLocaleDateString('it-IT');
+  let t = `PIANO DI RECUPERO – PDV ${pdv}\nData: ${data}\nCompilato da: ${$('nome').value}\n`;
+  if(!isNaN(r.fatt) || !isNaN(r.delta)){
+    t += `\n== DATI GENERALI ==\nFatturato totale mese: ${eur(r.fatt)}\nDelta mese: ${eur(r.delta)}\n`;
+    if(!isNaN(r.budget)) t += `Budget mese: ${eur(r.budget)}\n`;
+    t += `Giorni trascorsi: ${r.gT} – rimanenti: ${r.gR}\nMedia attuale/giorno: ${eur(r.media)}\nDa recuperare: ${eur(r.daRec)}\n`;
+    t += `>>> DA FARE AL GIORNO PER IL PAREGGIO: ${eur(r.giorno)} <<<\n`;
+  }
+  const voci = RIGHE.filter(x=>(x.pdv===pdv||x.pdv==='TUTTI') && !isNaN(num(realizzati[chiave(x)])));
+  if(voci.length){
+    t += `\n== DA FARE AL GIORNO PER VOCE ==\n`;
+    voci.forEach(x=>{
+      const c = calcVoce(x); if(!c.cNext) return;
+      const n=c.cNext, f=c.cFine;
+      t += `\n[${x.tipo}] ${x.voce}\n  Realizzato: ${eur(c.real)}\n`;
+      t += `  ${n.o.label} (obiettivo ${eur(n.o.val)}): ` + (n.manca<=0 ? `RAGGIUNTO (+${eur(-n.manca)})` : `mancano ${eur(n.manca)} → ${eur(n.giorno)}/giorno per ${n.gg} gg`) + `\n`;
+      if(f.o.label!==n.o.label)
+        t += `  FINE MESE (obiettivo ${eur(f.o.val)}): ` + (f.manca<=0 ? `RAGGIUNTO (+${eur(-f.manca)})` : `mancano ${eur(f.manca)} → ${eur(f.giorno)}/giorno per ${f.gg} gg`) + `\n`;
+    });
+  }
+  if($('azioni').value.trim()) t += `\n== AZIONI DI RECUPERO ==\n${$('azioni').value.trim()}\n`;
+  return t;
+}
+
+function aggiorna(){ $('preview').textContent = testo(); salva(); }
+function valida(){
+  if(!$('pdv').value){ toast('Seleziona il PDV'); return false; }
+  const haGen = !isNaN(num($('fatt').value)) && (!isNaN(num($('delta').value)) || !isNaN(num($('budget').value)));
+  const haVoci = Object.values(realizzati).some(v=>!isNaN(num(v)));
+  if(!haGen && !haVoci){ toast('Compila i dati generali o almeno una voce'); return false; }
+  return true;
+}
+function inviaMail(){
+  if(!valida()) return;
+  const sogg = `Piano di Recupero – ${$('pdv').value} – ${oggi().toLocaleDateString('it-IT')}`;
+  location.href = `mailto:${MAIL_TO}?subject=${encodeURIComponent(sogg)}&body=${encodeURIComponent(testo())}`;
+}
+function copia(){ if(!valida()) return; navigator.clipboard.writeText(testo()).then(()=>toast('Testo copiato')); }
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
+function salva(){ try{ localStorage.setItem('pdr_pdv',$('pdv').value); localStorage.setItem('pdr_nome',$('nome').value);}catch(e){} }
+function reset(){ ['fatt','delta','budget','azioni'].forEach(i=>$(i).value=''); realizzati={}; render(); }
+
+/* ===== AVVIO ===== */
+$('data').valueAsDate = new Date();
+try{ $('pdv').value = localStorage.getItem('pdr_pdv')||''; $('nome').value = localStorage.getItem('pdr_nome')||''; }catch(e){}
+calcGiorni();
+$('data').addEventListener('change',()=>{ calcGiorni(); aggiornaVoci(); aggiorna(); });
+$('pdv').addEventListener('change',()=>{ realizzati={}; render(); });
+['fatt','delta','budget','gTrasc','gRim','nome','azioni'].forEach(i=>$(i).addEventListener('input',aggiorna));
+carica();
+</script>
+</body>
+</html>
