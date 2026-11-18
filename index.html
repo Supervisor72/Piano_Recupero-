@@ -106,7 +106,7 @@
 
   <div class="card">
     <h2>Anteprima mail</h2>
-    <pre id="preview">Compila i campi per vedere l'anteprima.</pre>
+    <pre id="preview"></pre>
   </div>
 
   <div class="btns">
@@ -142,7 +142,7 @@ function num(v){
   else v = v.replace(',','.');
   return parseFloat(v);
 }
-const eur = n => (n===undefined||isNaN(n)) ? '—' : n.toLocaleString('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+const eur = n => { if(n===undefined||isNaN(n)) return '—'; const r=Math.round(n), a=String(Math.abs(r)).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); return (r<0?'-':'')+a+' €'; };
 const oggi = () => $('data').value ? new Date($('data').value) : new Date();
 const ultimoGiorno = d => new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
 const chiave = r => r.tipo+'|'+r.voce;
@@ -288,25 +288,46 @@ function aggiornaVoci(){
 }
 
 /* ===== TESTO MAIL ===== */
+const SEP = '━━━━━━━━━━━━━━━━━━━━';
+const ICONA = {TOTALE:'💰', SETTORE:'🔷', FAMIGLIA:'🔹', PRODOTTO:'▫️'};
+function bloccoScad(o, c, icona){
+  const nome = o.label==='FINE MESE' ? 'Fine mese' : 'Al ' + o.label.replace('AL ','');
+  if(c.manca<=0) return `${icona} ${nome} → obiettivo ${eur(o.val)}\n     ✅ RAGGIUNTO (+${eur(-c.manca)})\n`;
+  return `${icona} ${nome} → obiettivo ${eur(o.val)}\n     Mancano ${eur(c.manca)} in ${c.gg} gg\n     👉 DA FARE AL GIORNO: ${eur(c.giorno)}\n`;
+}
 function rigaMail(x){
   const c = calcVoce(x), dv = num(delte[chiave(x)]);
-  let t = `\n[${x.tipo}] ${x.voce}\n  Fatto: ${eur(c.real)}` + (!isNaN(dv) ? `  |  Delta: ${eur(dv)}` : '') + `\n`;
-  if(c.cDelta){ const x=c.cDelta; return t + `  >>> DA FARE AL GIORNO PER IL PAREGGIO: ` + (x.manca<=0 ? 'IN LINEA' : `${eur(x.giorno)} per ${x.gg} gg`) + `\n`; }
+  let t = `\n${SEP}\n${ICONA[x.tipo]||'▫️'} ${x.voce.toUpperCase()}  ·  ${x.tipo}\n${SEP}\n`;
+  if(!isNaN(c.real)) t += `✔️ Fatto ad oggi: ${eur(c.real)}\n`;
+  if(!isNaN(dv))     t += `📊 Delta: ${eur(dv)}\n`;
+  if(c.cDelta){
+    const d=c.cDelta;
+    t += d.manca<=0 ? `\n✅ IN LINEA\n` : `\n🏁 Pareggio a fine mese (${d.gg} gg)\n     👉 DA FARE AL GIORNO: ${eur(d.giorno)}\n`;
+    return t;
+  }
   if(!c.cNext) return t;
-  const n=c.cNext, f=c.cFine;
-  t += `  >>> ${n.o.label} (obiettivo ${eur(n.o.val)}): ` + (n.manca<=0 ? `RAGGIUNTO (+${eur(-n.manca)})` : `DA FARE AL GIORNO ${eur(n.giorno)} (mancano ${eur(n.manca)} in ${n.gg} gg)`) + `\n`;
-  if(f.o.label!==n.o.label)
-    t += `  >>> FINE MESE (obiettivo ${eur(f.o.val)}): ` + (f.manca<=0 ? `RAGGIUNTO (+${eur(-f.manca)})` : `DA FARE AL GIORNO ${eur(f.giorno)} (mancano ${eur(f.manca)} in ${f.gg} gg)`) + `\n`;
+  t += '\n' + bloccoScad(c.cNext.o, c.cNext, '🎯');
+  if(c.cFine.o.label!==c.cNext.o.label) t += '\n' + bloccoScad(c.cFine.o, c.cFine, '🏁');
   return t;
+}
+function sintesi(x){
+  const c = calcVoce(x);
+  if(c.cDelta) return c.cDelta.manca<=0 ? '✅ in linea' : eur(c.cDelta.giorno)+'/g a fine mese';
+  if(!c.cNext) return '—';
+  const n=c.cNext; return n.manca<=0 ? '✅ '+n.o.label.toLowerCase()+' raggiunto' : eur(n.giorno)+'/g '+n.o.label.toLowerCase();
 }
 function compilate(){ return mieRighe().filter(x=>!isNaN(num(realizzati[chiave(x)])) || !isNaN(num(delte[chiave(x)]))); }
 function testo(){
-  const pdv=$('pdv').value, mie=mieRighe(), direzione = mie.some(isTot);
-  let t = `PIANO DI RECUPERO – PDV ${pdv}\nData: ${oggi().toLocaleDateString('it-IT')}\nCompilazione: ${direzione?'DIREZIONE':'REPARTO'}\nCompilato da: ${$('nome').value}\n`;
+  const pdv=$('pdv').value, direzione = mieRighe().some(isTot);
   const comp = compilate(), tot = comp.filter(isTot), rep = comp.filter(x=>!isTot(x));
-  if(tot.length){ t += `\n== DATI GENERALI MESE ==\n`; tot.forEach(x=>t+=rigaMail(x)); }
-  if(rep.length){ t += `\n== DA FARE AL GIORNO PER VOCE ==\n`; rep.forEach(x=>t+=rigaMail(x)); }
-  if($('azioni').value.trim()) t += `\n== AZIONI DI RECUPERO ==\n${$('azioni').value.trim()}\n`;
+  let t = `📉 PIANO DI RECUPERO\n${SEP}\n🏬 PDV: ${pdv}\n📅 Data: ${oggi().toLocaleDateString('it-IT')}\n👤 Compilato da: ${$('nome').value||'—'} (${direzione?'DIREZIONE':'REPARTO'})\n`;
+  if(comp.length){
+    t += `\n⚡ RIEPILOGO DA FARE AL GIORNO\n`;
+    [...tot,...rep].forEach(x=>t += `• ${x.voce}: ${sintesi(x)}\n`);
+  }
+  if(tot.length){ t += `\n\n💼 DATI GENERALI MESE\n`; tot.forEach(x=>t+=rigaMail(x)); }
+  if(rep.length){ t += `\n\n📋 DETTAGLIO PER VOCE\n`; rep.forEach(x=>t+=rigaMail(x)); }
+  if($('azioni').value.trim()) t += `\n\n${SEP}\n🛠 AZIONI DI RECUPERO\n${SEP}\n${$('azioni').value.trim()}\n`;
   return t;
 }
 
