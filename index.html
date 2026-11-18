@@ -56,6 +56,11 @@
   .res span{display:block;font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:1px}
   .res b{display:block;font-size:17px;margin-top:3px}
   .res .hl b{color:var(--gold2)}
+  .res .big{grid-column:1/-1;border:1px solid var(--gold);background:linear-gradient(180deg,#1d1808,#141414);padding:12px}
+  .res .big b{font-size:26px;color:var(--gold2)}
+  .res .big small{display:block;font-size:11px;color:var(--mut);margin-top:4px}
+  .res .big.fm{border-color:#5a4a17}
+  .res .big.fm b{font-size:22px}
   .stato{font-size:12px;color:var(--mut);text-align:center;padding:10px}
 </style>
 </head>
@@ -81,29 +86,14 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="cardGen" style="display:none">
     <h2>Dati generali mese</h2>
-    <label>Fatturato totale mese (€)</label>
-    <input type="text" inputmode="decimal" id="fatt" placeholder="es. 185000">
-    <label>Delta mese (€)</label>
-    <input type="text" inputmode="decimal" id="delta" placeholder="es. -12500">
-    <div class="hint">Negativo se sotto obiettivo (es. -12500)</div>
-    <div class="row">
-      <div><label>Giorni trascorsi</label><input type="number" id="gTrasc" readonly></div>
-      <div><label>Giorni rimanenti</label><input type="number" id="gRim" readonly></div>
-    </div>
-    <div class="hint">Calcolati in automatico dalla data (oggi incluso nei rimanenti)</div>
-    <div class="kpi" style="margin-top:14px">
-      <div class="k big"><span>Da fare al giorno per il pareggio</span><b id="rGiorno">—</b></div>
-      <div class="k"><span>Media attuale/giorno</span><b id="rMedia">—</b></div>
-      <div class="k"><span>Recupero extra/giorno</span><b id="rExtra">—</b></div>
-      <div class="k"><span>Delta mese</span><b id="rDelta">—</b></div>
-      <div class="k"><span>Da recuperare</span><b id="rTot">—</b></div>
-    </div>
+    <div class="hint" style="margin:-6px 0 12px">👔 Compilazione a cura della Direzione</div>
+    <div id="vociGen"></div>
   </div>
 
   <div class="card">
-    <h2>Obiettivi per voce <button class="mini" onclick="carica(true)">↻ AGGIORNA</button></h2>
+    <h2>Obiettivi reparto <button class="mini" onclick="carica(true)">↻ AGGIORNA</button></h2>
     <div class="hint" style="margin:-6px 0 12px">Gli obiettivi sono fissati dal Capo Area e non modificabili. Inserisci il fatturato fatto dal 1° del mese e il delta per ogni voce</div>
     <div id="voci"><div class="stato">Seleziona il PDV</div></div>
   </div>
@@ -224,49 +214,57 @@ function calcVoce(r){
     const manca = o.val - real;
     return {o, gg, manca, giorno: manca>0 ? manca/gg : 0};
   };
-  return {real, obs, next, cNext: calc(next), cFine: calc(fine), g};
+  const delta = num(delte[chiave(r)]);
+  let cDelta = null;                        // solo delta inserito: recupero spalmato a fine mese
+  if(isNaN(real) && !isNaN(delta) && fine){
+    const gg = fine.giornoEff - g + 1, manca = delta<0 ? -delta : 0;
+    cDelta = {gg, manca, giorno: manca>0 ? manca/gg : 0};
+  }
+  return {real, delta, obs, next, cNext: calc(next), cFine: calc(fine), cDelta, g};
 }
 
 /* ===== RENDER ===== */
+const idVoce = r => 'v_'+btoa(unescape(encodeURIComponent(chiave(r)))).replace(/[^a-z0-9]/gi,'');
+const isTot = r => r.tipo==='TOTALE';
+function haValori(r){ return r.obiettivi.some(o=>!isNaN(o.val)); }
+function htmlVoce(r){
+  const k = chiave(r);
+  return `<div class="voce" id="${idVoce(r)}">
+    <div class="vt"><b>${r.voce}</b><span class="tag">${r.tipo}</span></div>
+    <div class="lock">🔒 OBIETTIVI</div>
+    <div class="cps" data-cps></div>
+    <div class="row">
+      <input type="text" inputmode="decimal" placeholder="Fatto ad oggi (€)" value="${realizzati[k]||''}" data-k="${encodeURIComponent(k)}">
+      <input type="text" inputmode="decimal" placeholder="Delta (€)" value="${delte[k]||''}" data-d="${encodeURIComponent(k)}">
+    </div>
+    <div class="res" data-res></div>
+  </div>`;
+}
+function mieRighe(){ const pdv=$('pdv').value; return RIGHE.filter(r=>(r.pdv===pdv||r.pdv==='TUTTI') && haValori(r)); }
 function render(){
-  const pdv = $('pdv').value;
-  const box = $('voci');
+  const pdv = $('pdv').value, box = $('voci');
+  $('cardGen').style.display='none'; $('vociGen').innerHTML='';
   if(!pdv){ box.innerHTML='<div class="stato">Seleziona il PDV</div>'; aggiorna(); return; }
-  const mie = RIGHE.filter(r=>r.pdv===pdv || r.pdv==='TUTTI');
-  if(!mie.length){ box.innerHTML='<div class="stato">Nessun obiettivo caricato per '+pdv+'</div>'; aggiorna(); return; }
-  const tipi = [...new Set(mie.map(r=>r.tipo))].sort((a,b)=>{const x=ORDINE_TIPI.indexOf(a),y=ORDINE_TIPI.indexOf(b);return (x<0?99:x)-(y<0?99:y);});
-  let html='';
-  tipi.forEach(t=>{
-    html += `<div class="grp">${t}</div>`;
-    mie.filter(r=>r.tipo===t).forEach(r=>{
-      const k = chiave(r), id = 'v_'+btoa(unescape(encodeURIComponent(k))).replace(/[^a-z0-9]/gi,'');
-      html += `<div class="voce" id="${id}">
-        <div class="vt"><b>${r.voce}</b><span class="tag">${r.tipo}</span></div>
-        <div class="lock">🔒 OBIETTIVI</div>
-        <div class="cps" data-cps></div>
-        <div class="row">
-          <input type="text" inputmode="decimal" placeholder="Fatto ad oggi (€)" value="${realizzati[k]||''}" data-k="${encodeURIComponent(k)}">
-          <input type="text" inputmode="decimal" placeholder="Delta (€)" value="${delte[k]||''}" data-d="${encodeURIComponent(k)}">
-        </div>
-        <div class="res" data-res></div>
-      </div>`;
-    });
-  });
-  box.innerHTML = html;
-  box.querySelectorAll('input[data-k]').forEach(inp=>inp.addEventListener('input',e=>{
+  const mie = mieRighe();
+  const tot = mie.filter(isTot), rep = mie.filter(r=>!isTot(r));
+  if(tot.length){ $('cardGen').style.display=''; $('vociGen').innerHTML = tot.map(htmlVoce).join(''); }
+  if(!rep.length){ box.innerHTML='<div class="stato">Nessun obiettivo di reparto per '+pdv+'</div>'; }
+  else{
+    const tipi=[...new Set(rep.map(r=>r.tipo))].sort((a,b)=>{const x=ORDINE_TIPI.indexOf(a),y=ORDINE_TIPI.indexOf(b);return (x<0?99:x)-(y<0?99:y);});
+    box.innerHTML = tipi.map(t=>`<div class="grp">${t}</div>`+rep.filter(r=>r.tipo===t).map(htmlVoce).join('')).join('');
+  }
+  document.querySelectorAll('input[data-k]').forEach(inp=>inp.addEventListener('input',e=>{
     realizzati[decodeURIComponent(e.target.dataset.k)] = e.target.value; aggiornaVoci(); aggiorna();
   }));
-  box.querySelectorAll('input[data-d]').forEach(inp=>inp.addEventListener('input',e=>{
-    delte[decodeURIComponent(e.target.dataset.d)] = e.target.value; aggiorna();
+  document.querySelectorAll('input[data-d]').forEach(inp=>inp.addEventListener('input',e=>{
+    delte[decodeURIComponent(e.target.dataset.d)] = e.target.value; aggiornaVoci(); aggiorna();
   }));
   aggiornaVoci(); aggiorna();
 }
 
 function aggiornaVoci(){
-  const pdv = $('pdv').value;
-  RIGHE.filter(r=>r.pdv===pdv || r.pdv==='TUTTI').forEach(r=>{
-    const id = 'v_'+btoa(unescape(encodeURIComponent(chiave(r)))).replace(/[^a-z0-9]/gi,'');
-    const el = $(id); if(!el) return;
+  mieRighe().forEach(r=>{
+    const el = $(idVoce(r)); if(!el) return;
     const c = calcVoce(r);
     el.querySelector('[data-cps]').innerHTML = c.obs.map(o=>{
       const cls = c.next && o.label===c.next.label ? 'next' : (o.giornoEff<c.g ? 'past':'');
@@ -274,59 +272,40 @@ function aggiornaVoci(){
     }).join('');
     const res = el.querySelector('[data-res]');
     el.classList.remove('ok','ko');
+    if(c.cDelta){
+      const x=c.cDelta;
+      el.classList.add(x.manca<=0?'ok':'ko');
+      res.innerHTML = `<div class="big"><span>Da fare al giorno per il pareggio</span><b>${x.manca<=0?'✅ IN LINEA':eur(x.giorno)}</b><small>recupero delta in ${x.gg} gg a fine mese</small></div>`;
+      return;
+    }
     if(!c.cNext){ res.innerHTML=''; return; }
     const n=c.cNext, f=c.cFine, stessa = n.o.label===f.o.label;
     el.classList.add(n.manca<=0 && f.manca<=0 ? 'ok':'ko');
-    let h = `<div class="hl"><span>Al giorno → ${n.o.label}</span><b>${n.manca<=0?'✅ OK':eur(n.giorno)}</b></div>
-             <div><span>Manca ${n.o.label} (${n.gg} gg)</span><b class="${n.manca>0?'neg':'pos'}">${eur(n.manca>0?n.manca:-n.manca)}${n.manca<=0?' +':''}</b></div>`;
-    if(!stessa) h += `<div class="hl"><span>Al giorno → fine mese</span><b>${f.manca<=0?'✅ OK':eur(f.giorno)}</b></div>
-             <div><span>Manca fine mese (${f.gg} gg)</span><b class="${f.manca>0?'neg':'pos'}">${eur(f.manca>0?f.manca:-f.manca)}${f.manca<=0?' +':''}</b></div>`;
+    let h = `<div class="big"><span>Da fare al giorno → ${n.o.label}</span><b>${n.manca<=0?'✅ OK':eur(n.giorno)}</b><small>${n.manca>0?'mancano '+eur(n.manca)+' in '+n.gg+' gg':'superato di '+eur(-n.manca)}</small></div>`;
+    if(!stessa) h += `<div class="big fm"><span>Da fare al giorno → fine mese</span><b>${f.manca<=0?'✅ OK':eur(f.giorno)}</b><small>${f.manca>0?'mancano '+eur(f.manca)+' in '+f.gg+' gg':'superato di '+eur(-f.manca)}</small></div>`;
     res.innerHTML = h;
   });
 }
 
-/* ===== DATI GENERALI ===== */
-function calcGiorni(){
-  const d = oggi();
-  $('gTrasc').value = d.getDate() - 1;
-  $('gRim').value = ultimoGiorno(d) - d.getDate() + 1;
-}
-function calcola(){
-  const fatt=num($('fatt').value), delta=num($('delta').value), budget=NaN;
-  const gT=parseInt($('gTrasc').value)||0, gR=parseInt($('gRim').value)||0;
-  const media = gT>0 && !isNaN(fatt) ? fatt/gT : NaN;
-  let daRec, giorno, extra;
-  if(!isNaN(budget) && !isNaN(fatt)){ daRec=Math.max(budget-fatt,0); giorno=gR>0?daRec/gR:NaN; extra=!isNaN(media)?giorno-media:NaN; }
-  else if(!isNaN(delta)){ daRec=delta<0?Math.abs(delta):0; extra=gR>0?daRec/gR:NaN; giorno=!isNaN(media)?media+extra:extra; }
-  $('rGiorno').textContent=eur(giorno); $('rMedia').textContent=eur(media); $('rExtra').textContent=eur(extra);
-  $('rTot').textContent=eur(daRec); $('rDelta').textContent=eur(delta);
-  $('rDelta').className = isNaN(delta)?'':(delta<0?'neg':'pos');
-  return {fatt,delta,budget,gT,gR,media,daRec,giorno,extra};
-}
-
 /* ===== TESTO MAIL ===== */
+function rigaMail(x){
+  const c = calcVoce(x), dv = num(delte[chiave(x)]);
+  let t = `\n[${x.tipo}] ${x.voce}\n  Fatto: ${eur(c.real)}` + (!isNaN(dv) ? `  |  Delta: ${eur(dv)}` : '') + `\n`;
+  if(c.cDelta){ const x=c.cDelta; return t + `  >>> DA FARE AL GIORNO PER IL PAREGGIO: ` + (x.manca<=0 ? 'IN LINEA' : `${eur(x.giorno)} per ${x.gg} gg`) + `\n`; }
+  if(!c.cNext) return t;
+  const n=c.cNext, f=c.cFine;
+  t += `  >>> ${n.o.label} (obiettivo ${eur(n.o.val)}): ` + (n.manca<=0 ? `RAGGIUNTO (+${eur(-n.manca)})` : `DA FARE AL GIORNO ${eur(n.giorno)} (mancano ${eur(n.manca)} in ${n.gg} gg)`) + `\n`;
+  if(f.o.label!==n.o.label)
+    t += `  >>> FINE MESE (obiettivo ${eur(f.o.val)}): ` + (f.manca<=0 ? `RAGGIUNTO (+${eur(-f.manca)})` : `DA FARE AL GIORNO ${eur(f.giorno)} (mancano ${eur(f.manca)} in ${f.gg} gg)`) + `\n`;
+  return t;
+}
+function compilate(){ return mieRighe().filter(x=>!isNaN(num(realizzati[chiave(x)])) || !isNaN(num(delte[chiave(x)]))); }
 function testo(){
-  const r = calcola(), pdv=$('pdv').value;
-  const data = oggi().toLocaleDateString('it-IT');
-  let t = `PIANO DI RECUPERO – PDV ${pdv}\nData: ${data}\nCompilato da: ${$('nome').value}\n`;
-  if(!isNaN(r.fatt) || !isNaN(r.delta)){
-    t += `\n== DATI GENERALI ==\nFatturato totale mese: ${eur(r.fatt)}\nDelta mese: ${eur(r.delta)}\n`;
-    t += `Giorni trascorsi: ${r.gT} – rimanenti: ${r.gR}\nMedia attuale/giorno: ${eur(r.media)}\nDa recuperare: ${eur(r.daRec)}\n`;
-    t += `>>> DA FARE AL GIORNO PER IL PAREGGIO: ${eur(r.giorno)} <<<\n`;
-  }
-  const voci = RIGHE.filter(x=>(x.pdv===pdv||x.pdv==='TUTTI') && (!isNaN(num(realizzati[chiave(x)])) || !isNaN(num(delte[chiave(x)]))));
-  if(voci.length){
-    t += `\n== DA FARE AL GIORNO PER VOCE ==\n`;
-    voci.forEach(x=>{
-      const c = calcVoce(x), dv = num(delte[chiave(x)]);
-      t += `\n[${x.tipo}] ${x.voce}\n  Fatto: ${eur(c.real)}` + (!isNaN(dv) ? `  |  Delta: ${eur(dv)}` : '') + `\n`;
-      if(!c.cNext) return;
-      const n=c.cNext, f=c.cFine;
-      t += `  ${n.o.label} (obiettivo ${eur(n.o.val)}): ` + (n.manca<=0 ? `RAGGIUNTO (+${eur(-n.manca)})` : `mancano ${eur(n.manca)} → ${eur(n.giorno)}/giorno per ${n.gg} gg`) + `\n`;
-      if(f.o.label!==n.o.label)
-        t += `  FINE MESE (obiettivo ${eur(f.o.val)}): ` + (f.manca<=0 ? `RAGGIUNTO (+${eur(-f.manca)})` : `mancano ${eur(f.manca)} → ${eur(f.giorno)}/giorno per ${f.gg} gg`) + `\n`;
-    });
-  }
+  const pdv=$('pdv').value, mie=mieRighe(), direzione = mie.some(isTot);
+  let t = `PIANO DI RECUPERO – PDV ${pdv}\nData: ${oggi().toLocaleDateString('it-IT')}\nCompilazione: ${direzione?'DIREZIONE':'REPARTO'}\nCompilato da: ${$('nome').value}\n`;
+  const comp = compilate(), tot = comp.filter(isTot), rep = comp.filter(x=>!isTot(x));
+  if(tot.length){ t += `\n== DATI GENERALI MESE ==\n`; tot.forEach(x=>t+=rigaMail(x)); }
+  if(rep.length){ t += `\n== DA FARE AL GIORNO PER VOCE ==\n`; rep.forEach(x=>t+=rigaMail(x)); }
   if($('azioni').value.trim()) t += `\n== AZIONI DI RECUPERO ==\n${$('azioni').value.trim()}\n`;
   return t;
 }
@@ -334,9 +313,7 @@ function testo(){
 function aggiorna(){ $('preview').textContent = testo(); salva(); }
 function valida(){
   if(!$('pdv').value){ toast('Seleziona il PDV'); return false; }
-  const haGen = !isNaN(num($('fatt').value)) && !isNaN(num($('delta').value));
-  const haVoci = [...Object.values(realizzati),...Object.values(delte)].some(v=>!isNaN(num(v)));
-  if(!haGen && !haVoci){ toast('Compila fatturato e delta o almeno una voce'); return false; }
+  if(!compilate().length){ toast('Compila almeno una voce'); return false; }
   return true;
 }
 function inviaMail(){
@@ -347,15 +324,14 @@ function inviaMail(){
 function copia(){ if(!valida()) return; navigator.clipboard.writeText(testo()).then(()=>toast('Testo copiato')); }
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
 function salva(){ try{ localStorage.setItem('pdr_pdv',$('pdv').value); localStorage.setItem('pdr_nome',$('nome').value);}catch(e){} }
-function reset(){ ['fatt','delta','azioni'].forEach(i=>$(i).value=''); realizzati={}; delte={}; render(); }
+function reset(){ $('azioni').value=''; realizzati={}; delte={}; render(); }
 
 /* ===== AVVIO ===== */
 $('data').valueAsDate = new Date();
 try{ $('pdv').value = localStorage.getItem('pdr_pdv')||''; $('nome').value = localStorage.getItem('pdr_nome')||''; }catch(e){}
-calcGiorni();
-$('data').addEventListener('change',()=>{ calcGiorni(); aggiornaVoci(); aggiorna(); });
+$('data').addEventListener('change',()=>{ aggiornaVoci(); aggiorna(); });
 $('pdv').addEventListener('change',()=>{ realizzati={}; delte={}; render(); });
-['fatt','delta','nome','azioni'].forEach(i=>$(i).addEventListener('input',aggiorna));
+['nome','azioni'].forEach(i=>$(i).addEventListener('input',aggiorna));
 carica();
 </script>
 </body>
